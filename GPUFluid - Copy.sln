@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.438
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GPUFluid", "GPUFluid\GPUFluid.vcxproj", "{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		GPUDriver|x64 = GPUDriver|x64
+		GPUDriver|x86 = GPUDriver|x86
+		Max2019|x64 = Max2019|x64
+		Max2019|x86 = Max2019|x86
+		Max2019Debug|x64 = Max2019Debug|x64
+		Max2019Debug|x86 = Max2019Debug|x86
+		Max2020|x64 = Max2020|x64
+		Max2020|x86 = Max2020|x86
+		Max2020Debug|x64 = Max2020Debug|x64
+		Max2020Debug|x86 = Max2020Debug|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.GPUDriver|x64.ActiveCfg = GPUDriver|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.GPUDriver|x64.Build.0 = GPUDriver|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.GPUDriver|x86.ActiveCfg = GPUDriver|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.GPUDriver|x86.Build.0 = GPUDriver|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019|x64.ActiveCfg = Max2020|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019|x64.Build.0 = Max2020|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019|x86.ActiveCfg = Max2019|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019|x86.Build.0 = Max2019|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019Debug|x64.ActiveCfg = Max2019Debug|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019Debug|x64.Build.0 = Max2019Debug|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019Debug|x86.ActiveCfg = Max2019Debug|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2019Debug|x86.Build.0 = Max2019Debug|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020|x64.ActiveCfg = Max2020|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020|x64.Build.0 = Max2020|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020|x86.ActiveCfg = Max2020|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020|x86.Build.0 = Max2020|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020Debug|x64.ActiveCfg = Max2020Debug|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020Debug|x64.Build.0 = Max2020Debug|x64
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020Debug|x86.ActiveCfg = Max2020Debug|Win32
+		{AC6878D9-BE10-4351-A9D8-D8A2F00E5FD6}.Max2020Debug|x86.Build.0 = Max2020Debug|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6C627997-A02F-4D12-A66E-617CF3F5D6EB}
+	EndGlobalSection
+EndGlobal
