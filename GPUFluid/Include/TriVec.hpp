@@ -49,19 +49,6 @@ TriVec<T>::TriVec(unsigned long long x, unsigned long long y, unsigned long long
 	invalid = Voxel<T>(true);
 	this->density = density;
 	this->dt = dt;
-
-	matrix.resize(size, size);
-	pressure.reserve(size);
-	aX.reserve(size);
-	aY.reserve(size);
-	aZ.reserve(size);
-	aDiag.reserve(size);
-	anX.reserve(size);
-	anY.reserve(size);
-	anZ.reserve(size);
-	uX.reserve(size);
-	uY.reserve(size);
-	uZ.reserve(size);
 }
 
 template <typename T>
@@ -259,45 +246,6 @@ __device__ T TriVec<T>::divergenceU(int x, int y, int z){		//calc right hand sid
 }
 
 template <typename T>
-__global__ void cuDivergenceU(CuVec<T>* Ux, CuVec<T>* Uy, CuVec<T>* Uz, CuVec<T>* divU, int x, int y, int z) {
-	unsigned int offset = gridDim.x*blockDim.x, ii = threadIdx.x + blockDim.x*blockIdx.x, tz = ii / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x;
-	unsigned int oz = offset / (x*y), oy = (offset % (x*y)) / x, oz = (offset % (x*y)) % x;
-	for (int i = ii; i < Ux->size && Uy->size && Uz->size && i < divU->size; i += offset) {
-		divU[i] -= (Ux->d_a[i] + Uy->d_a[i] + Uz->d_a[i]);
-		if (tx > 0 && Ux->d_i[i - 1] == Ux->d_i[i] - 1) {
-			divU->d_a[i] += Ux->d_a[i - 1];
-		}
-		if (ty > 0 && Uy->d_i[i - x] == Uy->d_i[i] - x) {
-			divU->d_a[i] += Uy->d_a[i - x];
-		}
-		if (tz > 0 && Uz->d_i[i - x * y] == Uz->d_i - x*y) {
-			divU->d_a[i] += Uz->d_a[i - x * y];
-		}
-
-		tz += oz;
-		ty += oy;
-		while (ty >= y) {
-			ty -= y;
-			++tz;
-		}
-		tx += ox;
-		if (tx >= x) {
-			tx -= x;
-			++ty;
-			if (ty >= y) {
-				ty -= y;
-				++tz;
-			}
-		}
-	}
-}
-
-template <typename T>
-__global__ void maxResidual(CuVec<T>* in) {
-	
-}
-
-template <typename T>
 __device__ void TriVec<T>::updateU(){
 	int offset = blockDim.x*gridDim.x;
 	for(int i = threadIdx.x+blockIdx.x*blockDim.x; i < size; i += offset){
@@ -315,7 +263,7 @@ __device__ void TriVec<T>::updateU(){
 				dpz = get(tx, ty, tz+1).p - p;
 
 			Vec3<T> t(dpx, dpy, dpz);	//calculate pressure diffs in x,y,z
-			t = t*dt/dx/density;		//scale these pressure diffs
+			t = t*dt/dx/density;							 													//scale these pressure diffs
 			a[i].u = a[i].u - t;
 		}
 	}
@@ -363,6 +311,8 @@ Vec3<T> TriVec<T>::negA(int x, int y, int z){
 
 template <typename T>
 void TriVec<T>::singleThreadGS(){
+////#pragma omp parallel for
+//	for (int i = 0; i < size; i++) {
 	concurrency::parallel_for(size_t(0), size_t(size), [&](int i){
 		if (a[i].t == FLUID) {
 			int tz = i / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x;
@@ -387,6 +337,8 @@ __device__ void TriVec<T>::calcResidualGS(){
 
 template <typename T>
 void TriVec<T>::calcResidualCPU() {
+//#pragma omp parallel for
+//	for (int i = 0; i < size; ++i) {
 	concurrency::parallel_for(size_t(0), size_t(size), [&](int i){
 		if (a[i].t == FLUID) {
 			int tz = i / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x;						//get x, y, z coords of Voxel. Calculate residual of pressure step for each fluid Voxel
@@ -402,6 +354,11 @@ __device__ void TriVec<T>::multiThreadJacobi(T* ax){
 	int offset = gridDim.x*blockDim.x;
 	for(int i = index; i < size; i += offset){									//each thread searches for a fluid cell so all run into a fluid unless there are more threads than fluid cells
 		int tz = i / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x;
+		//ax[threadIdx.x + 1] = get(tx, ty, tz).aX;
+		//if (threadIdx.x == 0) {
+		//	ax[0] = get(tx-1, ty, tz).aX;
+		//}
+		//__syncthreads();
 		if(a[i].t == FLUID){
 			Voxel<T> t = a[i];
 			a[i].p = (t.divU - (t.aX*get(tx+1, ty, tz).pold + t.aY*get(tx, ty+1, tz).pold + t.aZ*get(tx, ty, tz+1).pold + t.anX*get(tx-1, ty, tz).pold + t.anY*get(tx, ty-1, tz).pold + t.anZ*get(tx, ty, tz-1).pold))/(a[i].aDiag+0.000000000000001);
@@ -416,32 +373,38 @@ __device__ void TriVec<T>::multiThreadJacobi(T* ax){
 template <typename T>
 __device__ void TriVec<T>::redSOR(){
 	int offset = (gridDim.x*blockDim.x) << 1;
-	for (unsigned long long i = (threadIdx.x + blockDim.x*blockIdx.x) << 1; i < numF; i += offset) {
-		double t = 0, adiag;
-		for (int j = A.d_r[i]; j < A.d_r[i + 1]; ++j) {
-			if(A.c[j] != i)
-				t += A.a[j] * pressure;
-			else {
-				adiag = A.a[j];
-			}
+	for (unsigned long long i = (threadIdx.x + blockDim.x*blockIdx.x) << 1; i < size; i += offset) {
+		unsigned long long tz = i / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x, l = i;
+		if ((tx + ty + tz) & 1) {
+			if (tx + 1 >= x)
+				continue;
+			++l;
+			tz = l / (x*y), ty = (l % (x*y)) / x, tx = (l % (x*y)) % x;
 		}
-		pressure[i] = pressure_old[i] + W * (t / (adiag + 0.000000000000001) - pressure_old[i]));
+		//if (a[l].t == FLUID) {
+		//	Voxel<T> t = a[l];
+		//	a[l].p = t.pold + W * ((t.divU - (t.aX * get(tx + 1, ty, tz).p + t.aY*get(tx, ty + 1, tz).p + t.aZ*get(tx, ty, tz + 1).p + t.anX * get(tx - 1, ty, tz).p + t.anY*get(tx, ty - 1, tz).p + t.anZ*get(tx, ty, tz - 1).p)) / (t.aDiag + 0.000000000000001) - t.pold);
+		//}
+		a[l].p = a[l].t == FLUID ? a[l].pold + W * ((a[l].divU - (a[l].aX * get(tx + 1, ty, tz).p + a[l].aY*get(tx, ty + 1, tz).p + a[l].aZ*get(tx, ty, tz + 1).p + a[l].anX*get(tx - 1, ty, tz).p + a[l].anY*get(tx, ty - 1, tz).p + a[l].anZ*get(tx, ty, tz - 1).p)) / (a[l].aDiag + 0.000000000000001) - a[l].pold) : 0;
 	}
 }
 
 template <typename T>
 __device__ void TriVec<T>::blackSOR() {
 	int offset = (gridDim.x*blockDim.x) << 1;
-	for (unsigned long long i = ((threadIdx.x + blockDim.x*blockIdx.x) << 1) + 1; i < numF; i += offset) {
-		double t = 0, adiag;
-		for (int j = A.d_r[i]; j < A.d_r[i + 1]; ++j) {
-			if (A.d_c[j] != i)
-				t += A.d_a[j] * pressure[A.d_c[j]];
-			else {
-				adiag = A.d_a[j];
-			}
+	for (unsigned long long i = ((threadIdx.x + blockDim.x*blockIdx.x) << 1) + 1; i < size; i += offset) {
+		unsigned long long tz = i / (x*y), ty = (i % (x*y)) / x, tx = (i % (x*y)) % x, l = i;
+		if(!((tx + ty + tz) & 1)) {
+			if (tx - 1 < 0)
+				continue;
+			--l;
+			tz = l / (x*y), ty = (l % (x*y)) / x, tx = (l % (x*y)) % x;
 		}
-		pressure[i] = pressure_old[i] + W * (t / (adiag + 0.000000000000001) - pressure_old[i]);
+		//if (a[l].t == FLUID) {
+		//	Voxel<T> t = a[l];
+		//	a[l].p = t.pold + W * ((t.divU - (t.aX * get(tx + 1, ty, tz).p + t.aY*get(tx, ty + 1, tz).p + t.aZ*get(tx, ty, tz + 1).p + t.anX * get(tx - 1, ty, tz).p + t.anY*get(tx, ty - 1, tz).p + t.anZ*get(tx, ty, tz - 1).p)) / (t.aDiag + 0.000000000000001) - t.pold);
+		//}
+		a[l].p = a[l].t == FLUID ? a[l].pold + W * ((a[l].divU - (a[l].aX * get(tx + 1, ty, tz).p + a[l].aY*get(tx, ty + 1, tz).p + a[l].aZ*get(tx, ty, tz + 1).p + a[l].anX*get(tx - 1, ty, tz).p + a[l].anY*get(tx, ty - 1, tz).p + a[l].anZ*get(tx, ty, tz - 1).p)) / (a[l].aDiag + 0.000000000000001) - a[l].pold) : 0;
 	}
 }
 
@@ -465,20 +428,25 @@ __device__ void TriVec<T>::maxResidual(T* s, T* glob){	//trying different parall
 }
 
  void threadedMaxResidual(double* res, int size, int threadNum, int numThreads, double* curMax) {
-	 *curMax = 0;
-	 int maxIndex = size / numThreads;
-	 int curIndex = threadNum * (maxIndex);
-	 for (int i = 0; i < maxIndex && i + curIndex < size; ++i) {
-		 if (abs(res[i + curIndex]) > *curMax) {
-			 *curMax = abs(res[i]);
-		 }
-	 }
- }
+	*curMax = 0;
+	int maxIndex = size / numThreads;
+	int curIndex = threadNum*(maxIndex);
+	for (int i = 0; i < maxIndex && i+curIndex < size; ++i) {
+		if (abs(res[i+curIndex]) > *curMax) {
+			*curMax = abs(res[i]);
+		}
+	}
+}
 
 template <typename T>
 void TriVec<T>::maxResidualCPU() {
 	maxRes = 0;
 	unsigned int NUMT = std::thread::hardware_concurrency();
+	//for (int i = 0; i < size; i++) {
+	//	if (abs(this->res[i]) > maxRes) {
+	//		maxRes = abs(this->res[i]);
+	//	}
+	//}
 	
 	T* maxes = new T[NUMT];
 	std::future<void>** t = new std::future<void>*[NUMT];
@@ -583,6 +551,8 @@ __device__ void TriVec<T>::removeAandLists(){
 
 template <typename T>
 void TriVec<T>::resetFluidsCPU() {
+//#pragma omp parallel for
+	//for (int i = 0; i < size; ++i) {
 	concurrency::parallel_for(size_t(0), size_t(size), [&](int i){
 		a[i].u = Vec3<T>();
 		a[i].uOld = Vec3<T>();
@@ -601,6 +571,8 @@ void TriVec<T>::applyBodyForces() {
 		}
 	}
 #else
+//#pragma omp parallel for
+	//for (int l = 0; l < size; ++l) {
 	concurrency::parallel_for(size_t(0), size_t(size), [&](int l){
 		if (a[l].t != SOLID) {
 			a[l].u += t;
@@ -611,6 +583,8 @@ void TriVec<T>::applyBodyForces() {
 
 template <typename T>
 void TriVec<T>::applyBodyForcesCPU() {
+//#pragma omp parallel for
+	//for (int l = 0; l < size; ++l) {
 	concurrency::parallel_for(size_t(0), size_t(size), [&](int l){
 		if (a[l].t != SOLID) {
 			a[l].u += t;

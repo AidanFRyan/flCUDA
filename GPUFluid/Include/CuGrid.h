@@ -47,9 +47,6 @@ namespace Cu {
 
 		void maxUCPU();
 
-		void writeToFile(unsigned int frameNum, char* dir);
-		void readFromFile(unsigned int frameNum, char* dir);
-
 		TriVec<T> a, d_a;
 		int x, y, z, subSamples;
 		T dx, dt, density;

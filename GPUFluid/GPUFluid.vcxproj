@@ -285,7 +285,7 @@
       <HostDebugInfo>false</HostDebugInfo>
       <GenerateLineInfo>false</GenerateLineInfo>
       <FastMath>false</FastMath>
-      <Optimization>O2</Optimization>
+      <Optimization>Od</Optimization>
       <AdditionalCompilerOptions>
       </AdditionalCompilerOptions>
       <CudaRuntime>Static</CudaRuntime>
@@ -348,7 +348,6 @@
     <ClInclude Include="Include\ParticleList.h" />
     <ClInclude Include="Include\ParticleList.hpp" />
     <ClInclude Include="Include\resource.h" />
-    <ClInclude Include="Include\SLA.h" />
     <ClInclude Include="Include\Triangle.h" />
     <ClInclude Include="Include\Triangle.hpp" />
     <ClInclude Include="Include\TriVec.h" />

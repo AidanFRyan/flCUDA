@@ -14,15 +14,4 @@ __device__ __host__ T trilinterp(const T& aX, const T& aY, const T& aZ, const T&
 	return linterp(aZ, linterp(aY, linterp(aX, p000, p001), linterp(aX, p010, p011)), linterp(aY, linterp(aX, p100, p101), linterp(aX, p110, p111)));
 }
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
-{
-	if (code != cudaSuccess)
-	{
-		printf("GPUasser: %s %s %d\n", cudaGetErrorString(code), file, line);
-		fprintf(stdout, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-		if (abort) exit(code);
-	}
-}
-
 #endif

@@ -6,11 +6,8 @@
 #include <random>
 #include <iostream>
 #include <future>
-#include "SLA.h"
-//#include <thread>
-
+#include <thread>
 namespace Cu {
-
 	template <typename T>
 	class TriVec {//was originally supposed to be a way to store three arrays for each component of velocity, each element being a voxel to which the component corresponded
 					//need to refactor back into just arrays
@@ -69,17 +66,14 @@ namespace Cu {
 		int* solids, numSolids;
 		T maxRes, density;
 		T mU;
+		T *aDiag, *aX, *aY, *aZ;
 
 		std::default_random_engine* gen;
 		std::uniform_real_distribution<double>* dist;
-
-		SLA::CuMat<double> A;
-		SLA::CuVec<double> pressure, pressure_old, div_U, uX, uY, uZ, residual;
-		SLA::CuVec<VoxType> types;
-		int numF;
+		//std::vector<int>* pureFluidList;
 	};
-
 #include "TriVec.hpp"
+
 }
 
 #endif

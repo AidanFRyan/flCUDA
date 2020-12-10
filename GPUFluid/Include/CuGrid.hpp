@@ -237,10 +237,10 @@ CuGrid<T>* CuGrid<T>::toDeviceEmpty() {
 template <typename T>
 void CuGrid<T>::setDimensions(int x, int y, int z) {
 	this->x = x;
-this->y = y;
-this->z = z;
-this->a.setDimensions(x, y, z);
-this->d_a.setDimensions(x, y, z);
+	this->y = y;
+	this->z = z;
+	this->a.setDimensions(x, y, z);
+	this->d_a.setDimensions(x, y, z);
 }
 
 template <typename T>
@@ -251,11 +251,11 @@ void CuGrid<T>::setdx(double nx) {
 }
 
 template <typename T>
-void CuGrid<T>::print() {
-	for (int k = z - 1; k >= 0; k--) {
+void CuGrid<T>::print(){
+	for(int k = z-1; k >= 0; k--){
 		printf("\nZ = %d\n", k);
-		for (int j = y - 1; j >= 0; j--) {
-			for (int i = x - 1; i >= 0; i--) {
+		for(int j = y-1; j >= 0; j--){
+			for(int i = x-1; i >= 0; i--){
 				Voxel<T> *t = &a.get(i, j, k);
 				printf("| %f |", t->p);
 			}
@@ -266,40 +266,36 @@ void CuGrid<T>::print() {
 
 template <typename T>
 void CuGrid<T>::readParticlesFromTP(FlipFluidBasisThreadData* in, Vec3<T>*& v, Vec3<T>*& p, const Vec3<T>& offsetP) {	//currently set up so it doesn't know it can keep a copy on GPU at all times
+	//printf("v %p p %p\n", v, p);
 	if (in->datas.Count() != numParticles) {
 		if (this->list != nullptr) {
 			delete[] this->list;
 			this->list = nullptr;
 		}
 		if (this->d_list != nullptr) {
-			gpuErrchk(cudaFree(this->d_list));
+			cudaFree(this->d_list);
 			this->d_list = nullptr;
-		}
-		if (p != nullptr) {
-			delete[] p;
-			p = nullptr;
-		}
-		if (v != nullptr) {
-			delete[] v;
-			v = nullptr;
 		}
 	}
 	if (this->list == nullptr) {
 		this->list = new Particle<T>[in->datas.Count()];
 	}
 	if (this->d_list == nullptr) {
-		unsigned int t = in->datas.Count() * sizeof(Particle<T>);
-		gpuErrchk(cudaMalloc((void**)&d_list, t));
+		cudaMalloc((void**)&d_list, in->datas.Count() * sizeof(Particle<T>));
 	}
 	if (p == nullptr || v == nullptr) {
+		//for (int i = 0; i < in->datas.Count(); ++i) {
 		tbb::parallel_for(size_t(0), size_t(in->datas.Count()), [&](int i) {
 			this->list[i].p = in->datas[i].pos;
 			this->list[i].p = this->list[i].p - offsetP;
 			this->list[i].v = in->datas[i].vel;
-		});
+		}
+		);
 	}
 	else if (v != nullptr && p != nullptr) {
-		tbb::parallel_for(size_t(0), size_t(in->datas.Count()), [&](int i) {
+//#pragma omp parallel for
+		//for (int i = 0; i < in->datas.Count(); ++i) {
+		tbb::parallel_for(size_t(0), size_t(in->datas.Count()), [&](int i){
 			this->list[i].p = p[i];
 			this->list[i].v = v[i];
 		});
@@ -308,13 +304,8 @@ void CuGrid<T>::readParticlesFromTP(FlipFluidBasisThreadData* in, Vec3<T>*& v, V
 		v = nullptr;
 		p = nullptr;
 	}
-	a.types.reserve(this->x*this->y*this->z);
-	for (int i = 0; i < in->datas.Count(); ++i) {
-		unsigned int tx = list[i].p.x / this->dx, ty = list[i].p.y / this->dx, tz = list[i].p.z / this->p.z, index = tx + x * ty + x * y*tz;
-		a.types.set(index, FLUID);
-	}
 	cudaDeviceSynchronize();
-	gpuErrchk(cudaMemcpy(d_list, this->list, in->datas.Count() * sizeof(Particle<T>), cudaMemcpyHostToDevice));
+	cudaMemcpy(d_list, this->list, in->datas.Count() * sizeof(Particle<T>), cudaMemcpyHostToDevice);
 	this->numParticles = in->datas.Count();
 }
 
@@ -326,6 +317,9 @@ void CuGrid<T>::writeParticlesToTP(FlipFluidBasisThreadData* in, Vec3<T>*& v, Ve
 	if (p == nullptr) {
 		p = new Vec3<T>[in->datas.Count()];
 	}
+	//cudaMemcpy(list, d_list, sizeof(Particle<T>)*in->datas.Count(), cudaMemcpyDeviceToHost);
+//#pragma omp parallel for
+	//for (int i = 0; i < in->datas.Count(); ++i) {
 	tbb::parallel_for(size_t(0), size_t(in->datas.Count()), [&](int i){
 		v[i] = this->list[i].v;
 		p[i] = this->list[i].p;
@@ -335,44 +329,6 @@ void CuGrid<T>::writeParticlesToTP(FlipFluidBasisThreadData* in, Vec3<T>*& v, Ve
 		in->datas[i].vel.z = (this->list[i].p.z + offsetP.z - in->datas[i].pos.z) / in->dt;
 	});
 }
-
-template <typename T>
-void CuGrid<T>::writeToFile(unsigned int frameNum, char* dir) {
-	ofstream f;
-	string d = dir;
-	f = open(dir + to_string(frameNum) + ".ceb", ofstream::binary);
-	f.write((const char*)&x, sizeof(int));
-	f.write((const char*)&y, sizeof(int));
-	f.write((const char*)&z, sizeof(int));
-	f.write((const char*)&dx, sizeof(int));
-	f.write((const char*)&subsamples, sizeof(int));
-	f.write((const char*)&dt, sizeof(int));
-	f.write((const char*)&numParticles, sizeof(int));
-	f.write((const char*)list, numParticles * sizeof(Particle<T>));
-	f.close();
-}
-
-template<typename T>
-void CuGrid<T>::readFromFile(unsigned int frameNum, char* dir) {
-	ifstream f;
-	string d = dir;
-	d += to_string(frameNum) + ".ceb";
-	f = open(dir, ifstream::binary);
-	if (!f) {
-		printf("Error, file %s not found\n", d.c_str());
-		return;
-	}
-	f.read((char*)&x, sizeof(int));
-	f.read((char*)&y, sizeof(int));
-	f.read((char*)&z, sizeof(int));
-	f.read((char*)&dx, sizeof(int));
-	f.read((char*)&subsamples, sizeof(int));
-	f.read((char*)&dt, sizeof(int));
-	f.read((char*)&numParticles, sizeof(int));
-	f.read((char*)list, numParticles * sizeof(Particle<T>));
-	f.close();
-}
-
 
 template <typename T>
 __device__ void CuGrid<T>::advectParticles() {													//advect particles!
@@ -442,15 +398,13 @@ __device__ void CuGrid<T>::construct1() {
 }
 
 template <typename T>
-__device__ void CuGrid<T>::construct() {//error somewhere in here
+__device__ void CuGrid<T>::construct() {
 	int offset = gridDim.x*blockDim.x;
 	for (int i = threadIdx.x + blockDim.x*blockIdx.x; i < numParticles; i += offset) {
-		//printf("%d %d\n", i, numParticles);
 		int tx = floor(this->list[i].p.x / dx), ty = floor(this->list[i].p.y / dx), tz = floor(this->list[i].p.z / dx);
 		//if (a.get(tx, ty, tz).t == EMPTY) {
-		Voxel<T> &t = a.get(tx, ty, tz);
-		t.t = FLUID;
-		t.sd = -1;
+			a.get(tx, ty, tz).t = FLUID;
+			a.a[i].sd = -1;
 		//}
 	}
 }
@@ -468,9 +422,8 @@ void CuGrid<T>::constructCPU() {
 	tbb::parallel_for(size_t(0), size_t(numParticles), [&](int p){
 		int i = floor(this->list[p].p.x / dx), j = floor(this->list[p].p.y / dx), k = floor(this->list[p].p.z / dx);
 		//if (a.get(i, j, k).t == EMPTY) {
-		Voxel<T> &t = a.get(i, j, k);
-		t.t = FLUID;
-		t.sd = -1;
+			a.get(i, j, k).t = FLUID;
+			a.a[i].sd = -1;
 		//}
 	});
 

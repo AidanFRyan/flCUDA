@@ -106,46 +106,46 @@ void CuSolver<T>::solveFrame(CuGrid<T>* initialDevGrid) {
 	printf("initialDevGrid %p\n", initialDevGrid);
 	T* glob, max, *h_max, *d_max, *g;
 	double delt;
-	gpuErrchk(cudaMalloc((void**)&glob, NUMBLOCKS*NUMTHREADS * sizeof(T)));
-	gpuErrchk(cudaMalloc((void**)&d_max, sizeof(T)));
+	cudaMalloc((void**)&glob, NUMBLOCKS*NUMTHREADS * sizeof(T));
+	cudaMalloc((void**)&d_max, sizeof(T));
 	g = new T[NUMBLOCKS*NUMTHREADS];
 	h_max = new T;
 	cout<<"cusolver dt: "<<dt<<" cugrid dt: "<<grid->dt<<endl;
-	(resetGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-	gpuErrchk(cudaDeviceSynchronize());
-	(constructGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));	//major slow, but takes care of multiple writes to same linked list. Need to parallelize (KD Tree for particle sorting)
-	gpuErrchk(cudaDeviceSynchronize());
-	(findPureFluids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-	gpuErrchk(cudaDeviceSynchronize());
+	resetGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+	cudaDeviceSynchronize();
+	constructGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);	//major slow, but takes care of multiple writes to same linked list. Need to parallelize (KD Tree for particle sorting)
+	cudaDeviceSynchronize();
+	findPureFluids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+	cudaDeviceSynchronize();
 	constructPureFluidList << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
-	gpuErrchk(cudaDeviceSynchronize());
-	(reInsertSolids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid, states));
-	gpuErrchk(cudaDeviceSynchronize());
+	cudaDeviceSynchronize();
+	reInsertSolids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid, states);
+	cudaDeviceSynchronize();
 	for (T tElapsed = 0; grid->dt - tElapsed > 0.00001;) {
 		printf("initialDevGrid %p\n", initialDevGrid);
 		cout<<tElapsed<<" "<<grid->dt<<endl;
-		(interpolateFromParts << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(interpolateToGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
+		interpolateFromParts << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		interpolateToGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
 		/*interpolateToGrid << <NUMBLOCKS, NUMTHREADS, (16*NUMTHREADS+1)*sizeof(T) >> > (initialDevGrid);
 		cudaDeviceSynchronize();*/
-		(copyUOld << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(getMaxU << <1, NUMTHREADS >> > (initialDevGrid, glob, d_max));
-		gpuErrchk(cudaDeviceSynchronize());
-		(setParameters << <1, 1 >> > (initialDevGrid, grid->dt, tElapsed, d_max));
-		gpuErrchk(cudaDeviceSynchronize());
-		(cudaMemcpy(h_max, d_max, sizeof(T), cudaMemcpyDeviceToHost));
+		copyUOld << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		getMaxU << <1, NUMTHREADS >> > (initialDevGrid, glob, d_max);
+		cudaDeviceSynchronize;
+		setParameters << <1, 1 >> > (initialDevGrid, grid->dt, tElapsed, d_max);
+		cudaDeviceSynchronize();
+		cudaMemcpy(h_max, d_max, sizeof(T), cudaMemcpyDeviceToHost);
 		delt = *h_max;
-		gpuErrchk(cudaDeviceSynchronize());
-		(bodyForces << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(divergence << <NUMBLOCKS, NUMTHREADS, NUMTHREADS*sizeof(T) >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(getMaxResidual << <NUMBLOCKS, NUMTHREADS, NUMTHREADS * sizeof(T) >> > (initialDevGrid, d_max));
-		gpuErrchk(cudaDeviceSynchronize());
-		(cudaMemcpy(g, glob, NUMBLOCKS * sizeof(T), cudaMemcpyDeviceToHost));
+		cudaDeviceSynchronize();
+		bodyForces << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		divergence << <NUMBLOCKS, NUMTHREADS, NUMTHREADS*sizeof(T) >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		getMaxResidual << <NUMBLOCKS, NUMTHREADS, NUMTHREADS * sizeof(T) >> > (initialDevGrid, d_max);
+		cudaDeviceSynchronize();
+		cudaMemcpy(g, glob, NUMBLOCKS * sizeof(T), cudaMemcpyDeviceToHost);
 		max = 0;
 		for (int i = 0; i < NUMBLOCKS; ++i) {
 			if (g[i] > max) {
@@ -155,17 +155,17 @@ void CuSolver<T>::solveFrame(CuGrid<T>* initialDevGrid) {
 		for (int j = 0; j < 10000 && max > 0.00000001; ++j) {
 			/*jacobi << <NUMBLOCKS, NUMTHREADS, (NUMTHREADS+1)*sizeof(T) >> > (initialDevGrid);
 			cudaDeviceSynchronize();*/
-			(redSOR << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-			gpuErrchk(cudaDeviceSynchronize());
-			(blackSOR << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-			gpuErrchk(cudaDeviceSynchronize());
+			redSOR << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+			cudaDeviceSynchronize();
+			blackSOR << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+			cudaDeviceSynchronize();
 			/*asyncSOR<<<NUMBLOCKS, NUMTHREADS>>>(initialDevGrid);
 			cudaDeviceSynchronize();*/
-			(residual << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-			gpuErrchk(cudaDeviceSynchronize());
-			(getMaxResidual << <NUMBLOCKS, NUMTHREADS, NUMTHREADS * sizeof(T) >> > (initialDevGrid, glob));
-			gpuErrchk(cudaDeviceSynchronize());
-			(cudaMemcpy(g, glob, NUMBLOCKS*sizeof(T), cudaMemcpyDeviceToHost));
+			residual << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+			cudaDeviceSynchronize();
+			getMaxResidual << <NUMBLOCKS, NUMTHREADS, NUMTHREADS * sizeof(T) >> > (initialDevGrid, glob);
+			cudaDeviceSynchronize();
+			cudaMemcpy(g, glob, NUMBLOCKS*sizeof(T), cudaMemcpyDeviceToHost);
 			max = 0;
 			for (int i = 0; i < NUMBLOCKS; ++i) {
 				if (g[i] > max) {
@@ -175,24 +175,24 @@ void CuSolver<T>::solveFrame(CuGrid<T>* initialDevGrid) {
 		}
 		/*pressureSolve<<<NUMTHREADS, NUMBLOCKS>>>(initialDevGrid, glob);
 		cudaDeviceSynchronize();*/
-		(updateU << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(applyU << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(advectParticles << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(removeLists << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(resetGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(constructGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(findPureFluids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(constructPureFluidList << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid));
-		gpuErrchk(cudaDeviceSynchronize());
-		(reInsertSolids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid, states));
-		gpuErrchk(cudaDeviceSynchronize());
+		updateU << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		applyU << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		advectParticles << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		removeLists << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		resetGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize(); 
+		constructGrid << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		findPureFluids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		constructPureFluidList << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid);
+		cudaDeviceSynchronize();
+		reInsertSolids << <NUMBLOCKS, NUMTHREADS >> > (initialDevGrid, states);
+		cudaDeviceSynchronize();
 		tElapsed += delt;
 	}
 	cudaDeviceSynchronize();

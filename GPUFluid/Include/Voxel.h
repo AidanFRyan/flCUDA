@@ -3,7 +3,7 @@
 #include "Vec3.h"
 #include "Particle.h"
 namespace Cu{
-    enum VoxType {EMPTY, SOLID, FLUID};
+    enum VoxType {SOLID, FLUID, EMPTY};
 	template <typename T>
 	class Voxel{
 	public:
